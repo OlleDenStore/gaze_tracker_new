@@ -1,7 +1,7 @@
 from tensorflow import keras
 import cv2
 import numpy as np
-from eye_gaze.train_neural_net import load
+#from eye_gaze.train_neural_net import load
 
 class eye_gaze:
 
@@ -26,7 +26,7 @@ class eye_gaze:
         image = cv2.circle(image, (int(np.round(landmarks[4])),int(np.round(landmarks[5]))), 0, color1)
         return image
 
-    def find_true_center(self,pred,offset=0.5):
+    def find_true_center(self,pred,offset=0.05):
         eye_mid_x = (pred[2]+pred[4])/2
         eye_mid_y = (pred[3]+pred[5])/2
         eye_mid = np.array([eye_mid_x,eye_mid_y])
@@ -40,7 +40,7 @@ class eye_gaze:
         return eye_mid
 
 
-    def calc_dps(self,eye,offset=0.5):
+    def calc_dps(self,eye,offset=0.05):
         image = eye.copy()
         eye = np.expand_dims(eye, axis=0)
         pred = self.model.predict(eye)[0]

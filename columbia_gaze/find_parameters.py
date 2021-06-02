@@ -5,8 +5,10 @@ from mtcnn.mtcnn import MTCNN
 import sys
 import skopt
 from numpy.testing._private.nosetester import NoseTester
-sys.path.insert(1, 'gaze_tracker\eye_gaze')
+sys.path.insert(1, '/home/cif06dsi/gaze_tracker_new/eye_gaze')
 from eye_gaze import eye_gaze
+from train_neural_net import load
+
 
 def create_labels(dataset_path, label_list):
     for file_name in os.listdir(dataset_path):
@@ -29,6 +31,8 @@ def create_labels(dataset_path, label_list):
             create_labels(os.path.join(dataset_path, file_name), label_list)
 
     return find_head_and_gaze(label_list)
+
+
 
 def find_head_and_gaze(labels):
     vector_list = []
@@ -111,7 +115,7 @@ def predict_head_pose(dataset_path, head_pose_list, detector, Rm):
 
             face = detector.detect_faces(img)
             try:
-                head_pose = find_normal(face[0]['keypoints'],Rm)
+                head_pose = find_normal(face[0]['keypoints'], Rm)
             
             except:
                 head_pose = None
@@ -150,7 +154,7 @@ def predict_dps(dataset_path, dps_list, detector, offset=0.5):
                 right_cropped = cv2.cvtColor(right_cropped,cv2.COLOR_RGB2GRAY)
                 input_data_right = np.reshape(right_cropped,(32,32,1))
 
-                model_path = 'D:/Python_Workspace/gaze_tracker/eye_gaze/Data/Models/CorCNN.model'
+                model_path = 'eye_gaze/Data/Models/CorCNN.model'
 
                 eg = eye_gaze(model_path)
 
@@ -179,22 +183,24 @@ def vector_angle(v1,v2):
     return angle
 
 def nose_base_error(Rm):
-    ground_truth = create_labels('gaze_tracker/columbia_gaze/Columbia_Gaze_Data_Set',[])
-    path = 'gaze_tracker/columbia_gaze/Columbia_Gaze_Data_Set'
+
     angle_sum = 0
     nr_elements = 0
     head = predict_head_pose(path,[],MTCNN(),Rm)
-    for i in range(ground_truth):
+    for i in range(len(ground_truth)):
             if head[i] is not None:
                 angle_sum += vector_angle(ground_truth[i]['Head_Pose'], head[i])
                 nr_elements += 1
+                if(i%100==0):
+                    print('Rm: ', Rm, ' iteration ', i, ' of ', len(ground_truth))
+                
 
     return angle_sum/nr_elements
 
 def gaze_error(offset, head_weight):
-    ground_truth = create_labels('gaze_tracker/columbia_gaze/Columbia_Gaze_Data_Set',[])
-    path = 'gaze_tracker/columbia_gaze/Columbia_Gaze_Data_Set'
-    head = predict_head_pose(path,[],0.5)
+    #path = 'columbia_gaze/Columbia_Gaze_Data_Set'
+    #ground_truth = create_labels(path,[])
+    head = predict_head_pose(path,[],MTCNN(),0.5)
     angle_sum = 0
     nr_elements = 0
     dps = predict_dps(path,[],MTCNN(),offset)
@@ -205,6 +211,12 @@ def gaze_error(offset, head_weight):
         nr_elements += 1
 
     return angle_sum/nr_elements
+
+path = '/home/cif06dsi/gaze_tracker_new/columbia_gaze/Columbia_Gaze_Data_Set'
+print('building ground truth')
+ground_truth = create_labels(path,[])
+print('ground truth done')
+
 
 if __name__ == '__main__':
     SPACE = [
@@ -218,6 +230,6 @@ if __name__ == '__main__':
     best_auc = -1.0 * results.fun
     best_params = results.x
 
-    #predicted_dps = predict_dps('gaze_tracker/columbia_gaze/Columbia_Gaze_Data_Set',[],MTCNN())
+    #predicted_dps = predict_dps('columbia_gaze/Columbia_Gaze_Data_Set',[],MTCNN())
     print('best result: ', best_auc)
     print('best parameters: ', best_params)

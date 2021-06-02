@@ -6,7 +6,7 @@ import os
 import sys
 from os import path
 from head_pose.calc_normal_3d import find_normal
-from tf_mtcnn_master.mtcnn_tfv2 import detect
+#from tf_mtcnn_master.mtcnn_tfv2 import detect
 import tensorflow as tf
 from YOLO.yolo_predict import yolo_predict, draw_boxes
 import pyrealsense2 as rs
@@ -46,7 +46,7 @@ def find_bbox(face,img_width,img_height):
 def test_draw(image, dot):
     dot = (int(np.round(dot[0])),int(np.round(dot[1])))
     image = cv2.circle(image, dot, 3, (0,255,255))
-
+"""
 def fast_detect(image):
     bbox, scores, lm = detect(image)
     boxes = []
@@ -70,9 +70,17 @@ def fast_detect(image):
         faces.append({'box':boxes[i],'keypoints':landmarks[i]})
 
     return faces
-
-def placeholder_depth(point, scale=1):
-    return 10
+"""
+def get_depth(point, d_frame):
+    sum_d = []
+    p_x = int(np.round(point[0]))
+    p_y = int(np.round(point[1]))
+    for x in range(p_x-5,p_x+5):
+        for y in range(p_y-5,p_y+5):
+            dep = depth_frame.get_distance(x, y)
+            if(dep>0):
+                sum_d.append(dep)
+    return np.median(sum_d)
 
 def vector_angle(a,b):
     dp = np.dot(a,b)
@@ -80,17 +88,21 @@ def vector_angle(a,b):
     return angle
 
 def draw_prediction(img,obj_in_space,gaze,yolo_dim):
+    global nose
+    print('gaze: ',gaze)
+    print('nose: ',nose)
     image = img
     angles = []
     #(yolo_dim[0]/pixels.shape[1]),s_p[1]*(yolo_dim[1]/pixels.shape[0]))
-    x_scale = image.shape[1]/yolo_dim[0]
-    y_scale = image.shape[0]/yolo_dim[1]
+    #x_scale = image.shape[1]/yolo_dim[0]
+    #y_scale = image.shape[0]/yolo_dim[1]
     for obj in objects_in_space:
         angles.append(vector_angle(obj['vector'],gaze))
-        image = cv2.circle(image, (int(np.round(obj['x_y'][0]*x_scale)),int(np.round(obj['x_y'][1]*y_scale))), 5, (0,0,255),3)
+        image = cv2.circle(image, (int(np.round(obj['x_y'][0])),int(np.round(obj['x_y'][1]))), 5, (0,0,255),3)
+        print('vector: ',obj['vector'],' label: ',obj['label'],' X_Y_Z: ',obj['x_y_z'])
     lowest_angle = min(angles)
     index = angles.index(lowest_angle)
-    image = cv2.circle(image, (int(np.round(objects_in_space[index]['x_y'][0]*x_scale)),int(np.round(objects_in_space[index]['x_y'][1]*y_scale))), 5, (0,255,255), 3)
+    image = cv2.circle(image, (int(np.round(objects_in_space[index]['x_y'][0])),int(np.round(objects_in_space[index]['x_y'][1]))), 5, (0,255,255), 3)
     return image
 
 def get_ma(q):
@@ -100,6 +112,7 @@ def get_ma(q):
     return avg/len(q)
 
 if __name__ == '__main__':
+    global nose
 
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
@@ -110,17 +123,18 @@ if __name__ == '__main__':
     rs.config.enable_device_from_file(config, 'eye_gaze/Data/videos/eval.bag')
     config.enable_stream(rs.stream.depth, rs.format.z16, 30)
     config.enable_stream(rs.stream.color, rs.format.rgb8, 30)
-    align_to = rs.stream.color
-    align = rs.align(align_to)
+    align = rs.align(rs.stream.color)
     profile = pipeline.start(config)
     frames = pipeline.wait_for_frames()
     aligned_frames = align.process(frames)
-    depth_frame = aligned_frames.get_depth_frame()
+    depth_frame = aligned_frames.get_depth_frame().as_depth_frame()
     color_frame = aligned_frames.get_color_frame()
     color_frame = np.asanyarray(color_frame.get_data())
-    pixels = cv2.cvtColor(color_frame, cv2.COLOR_BGR2RGB)
     pipeline.stop()
-    depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
+    pixels = cv2.cvtColor(color_frame, cv2.COLOR_BGR2RGB)
+    depth_intrin = depth_frame.profile.as_video_stream_profile().intrinsics
+ 
+
 
     scale_percent = 100 # percent of original size
     width = int(pixels.shape[1] * scale_percent / 100)
@@ -135,17 +149,37 @@ if __name__ == '__main__':
     yolo_data = [x for x in zip(v_boxes,v_labels) if (x[1]=='bottle' or x[1]=='cell phone' or x[1]=='mouse')]
     #print('predictions',yolo_data)
     objects_in_space = []
+    x_scale = pixels.shape[1]/yolo_dim[0]
+    y_scale = pixels.shape[0]/yolo_dim[1]
+
     s_p = faces[0]['keypoints']['nose']
-    start_point = (s_p[0]*(yolo_dim[0]/pixels.shape[1]),s_p[1]*(yolo_dim[1]/pixels.shape[0]))
+    nose =  s_p #(s_p[0]*x_scale,s_p[1]*y_scale)
+    depth = get_depth(nose, depth_frame)
+    print('intrinsics:',depth_intrin)
+    print("depth:",depth)
+    nose_point = np.array(rs.rs2_deproject_pixel_to_point(
+                                depth_intrin, [nose[0], nose[1]], depth))
+    print('nose_point:',nose_point)
+
     for obj in yolo_data:
         print("obj:"+obj[0].to_string())
         x_y = obj[0].get_center()
+        x_y = [int(np.round(x_y[0]*x_scale)),int(np.round(x_y[1]*y_scale))]
+        print(x_y)
+        depth = get_depth(x_y,depth_frame)
+        print("depth:",depth)
+        x_y_z = np.array(rs.rs2_deproject_pixel_to_point(
+                                depth_intrin, [x_y[0], x_y[1]], depth))
         objects_in_space.append(
             {
                 'x_y': x_y,
-                'vector': np.array([x_y[0]-start_point[0],x_y[1]-start_point[1],placeholder_depth(x_y)-placeholder_depth(start_point)])
+                'x_y_z': x_y_z,
+                'vector': x_y_z-nose_point,
+                'label': obj[0].get_label()
             }
-        ) 
+        )
+        print('x_y_z: ',x_y_z)
+        print('vector: ',x_y_z-nose_point)
     #print("objects_in_space",objects_in_space)
     #for pred in yolo_data:
     
@@ -205,7 +239,6 @@ if __name__ == '__main__':
         dps = ((dps_left[0]+dps_right[0])*5,(dps_left[1]+dps_right[1])*5)
         face_normal = 20*find_normal(faces[0]['keypoints'])
         gaze_vector_3d = np.array((face_normal[0]+dps[0], face_normal[1]+dps[1], face_normal[2]))
-        #q.popleft()
         q.append(gaze_vector_3d)
         gaze_vector_3d = get_ma(q)
         gaze_vector = (gaze_vector_3d[0], gaze_vector_3d[1])
@@ -223,7 +256,8 @@ if __name__ == '__main__':
         draw_normal(pixels,bbox[0],face_normal,faces[0]['keypoints']['nose'])
         draw_prediction(pixels,objects_in_space,gaze_vector_3d,yolo_dim)
         cv2.imshow('pixels',pixels)
+        #pipeline.stop()
         if cv2.waitKey(1) == 27:
             break  # esc to quit
-        
+        #pipeline.start(config)
     cv2.destroyAllWindows()
