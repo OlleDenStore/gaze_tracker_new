@@ -10,7 +10,7 @@ def draw_normal(image, normal, face):
     cv2.arrowedLine(image, p1, p2, (255,0,0), 2)
     return image
 
-def find_normal(landmarks):
+def find_normal(landmarks, Rm=0.5120188457668462, Rn=0.4565686085566898):
     left_eye = np.array(landmarks['left_eye'])
     right_eye = np.array(landmarks['right_eye'])
     eye_vector = right_eye-left_eye
@@ -22,7 +22,7 @@ def find_normal(landmarks):
     mouth_vector = mouth_right-mouth_left
     mouth_mid = mouth_left + mouth_vector/2
 
-    Rm = 0.5
+
     a_vector = mouth_mid - eye_mid
     nose_base = np.round(eye_mid + a_vector*(1-Rm))
     projected_normal = np.array(landmarks['nose']-nose_base)
@@ -45,7 +45,6 @@ def find_normal(landmarks):
     m2 = np.cos(theta)**2
     if m2==1:
         m2 *= 0.99
-    Rn = 0.6
 
     x1 = -(m1-Rn**2+2*m2*Rn**2)/(2*Rn**2*(1-m2))
     x2 = np.sqrt(((m1-Rn**2+2*m2*Rn**2)/(2*Rn**2*(1-m2)))**2+(m2*Rn**2)/(Rn**2*(1-m2)))

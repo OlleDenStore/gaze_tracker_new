@@ -10,7 +10,7 @@ from head_pose.calc_normal_3d import find_normal
 import tensorflow as tf
 from YOLO.yolo_predict import yolo_predict, draw_boxes
 import pyrealsense2 as rs
-from scipy import signal
+import time
 from collections import deque
 
 def crop_eye_image(image, corner, width, height):
@@ -89,8 +89,8 @@ def vector_angle(a,b):
 
 def draw_prediction(img,obj_in_space,gaze,yolo_dim):
     global nose
-    print('gaze: ',gaze)
-    print('nose: ',nose)
+    #print('gaze: ',gaze)
+    #print('nose: ',nose)
     image = img
     angles = []
     #(yolo_dim[0]/pixels.shape[1]),s_p[1]*(yolo_dim[1]/pixels.shape[0]))
@@ -99,7 +99,7 @@ def draw_prediction(img,obj_in_space,gaze,yolo_dim):
     for obj in objects_in_space:
         angles.append(vector_angle(obj['vector'],gaze))
         image = cv2.circle(image, (int(np.round(obj['x_y'][0])),int(np.round(obj['x_y'][1]))), 5, (0,0,255),3)
-        print('vector: ',obj['vector'],' label: ',obj['label'],' X_Y_Z: ',obj['x_y_z'])
+        #print('vector: ',obj['vector'],' label: ',obj['label'],' X_Y_Z: ',obj['x_y_z'])
     lowest_angle = min(angles)
     index = angles.index(lowest_angle)
     image = cv2.circle(image, (int(np.round(objects_in_space[index]['x_y'][0])),int(np.round(objects_in_space[index]['x_y'][1]))), 5, (0,255,255), 3)
@@ -107,9 +107,12 @@ def draw_prediction(img,obj_in_space,gaze,yolo_dim):
 
 def get_ma(q):
     avg = np.array([0.0,0.0,0.0])
-    for item in q:
-        avg += item
-    return avg/len(q)
+    weights = np.array([1.0 , 1.0 , 1.0, 1.0, 1.0, 1.0, 1.0])
+    weights /= sum(weights)
+    #print(len(q))
+    for index, item in enumerate(q):
+        avg += item*weights[index]
+    return avg
 
 if __name__ == '__main__':
     global nose
@@ -120,9 +123,9 @@ if __name__ == '__main__':
 
     pipeline = rs.pipeline()
     config = rs.config()
-    rs.config.enable_device_from_file(config, 'eye_gaze/Data/videos/eval.bag')
-    config.enable_stream(rs.stream.depth, rs.format.z16, 30)
-    config.enable_stream(rs.stream.color, rs.format.rgb8, 30)
+    #rs.config.enable_device_from_file(config, 'eye_gaze/Data/videos/eval.bag')
+    config.enable_stream(rs.stream.depth, 1024, 768, rs.format.z16, 30)
+    config.enable_stream(rs.stream.color, 1920, 1080, rs.format.rgb8, 30)
     align = rs.align(rs.stream.color)
     profile = pipeline.start(config)
     frames = pipeline.wait_for_frames()
@@ -203,6 +206,7 @@ if __name__ == '__main__':
     while True:
     #for x in range(2):
         #ret, pixels = cap.read()
+        t1=time.perf_counter()
         frames = pipeline.wait_for_frames()
         aligned_frames = align.process(frames)
         depth_frame = aligned_frames.get_depth_frame()
@@ -213,51 +217,62 @@ if __name__ == '__main__':
         image = crop_face_image(pixels,bbox[0],bbox[1],bbox[2])
         #if(i%2==0):
         #faces = fast_detect(image)
+
+       
         faces = detector.detect_faces(image)
-        #i+=1
+        if(len(faces)>0):
 
-        le = faces[0]['keypoints']['left_eye']
-        lc = (le[0]-int(crop_size/2),le[1]-int(crop_size/2))
-        re = faces[0]['keypoints']['right_eye']
-        rc = (re[0]-int(crop_size/2),re[1]-int(crop_size/2))
-        left_eye = crop_eye_image(image, lc, crop_size, crop_size)
+            le = faces[0]['keypoints']['left_eye']
+            lc = (le[0]-int(crop_size/2),le[1]-int(crop_size/2))
+            re = faces[0]['keypoints']['right_eye']
+            rc = (re[0]-int(crop_size/2),re[1]-int(crop_size/2))
+            left_eye = crop_eye_image(image, lc, crop_size, crop_size)
 
-        dps_offset = 0.06  # CALIBRATION PARAM
+            dps_offset = 0.06 #0.09894059099181585  # CALIBRATION PARAM
+            hp_weight = 1.0 #1.4501960162323853
+            z_weight = 0.05935353286090281
 
-        left_eye = cv2.cvtColor(left_eye, cv2.COLOR_RGB2GRAY)
-        left_eye = np.reshape(left_eye,(32,32,1))
-        right_eye = crop_eye_image(image, rc, crop_size, crop_size)
+            left_eye = cv2.cvtColor(left_eye, cv2.COLOR_RGB2GRAY)
+            left_eye = np.reshape(left_eye,(32,32,1))
+            right_eye = crop_eye_image(image, rc, crop_size, crop_size)
 
-        right_eye = cv2.cvtColor(right_eye, cv2.COLOR_RGB2GRAY)
-        right_eye = np.reshape(right_eye,(32,32,1))
-        dps_left, pred_left = gaze.calc_dps(left_eye,offset=dps_offset)
-        left_pupil = (lc[0]+int(np.round(pred_left[0]*crop_size/32)),lc[1]+int(np.round(pred_left[1]*crop_size/32)))
-        
-        
-        dps_right, pred_right = gaze.calc_dps(right_eye,offset=dps_offset)
-        right_pupil = (rc[0]+int(np.round(pred_right[0]*crop_size/32)),rc[1]+int(np.round(pred_right[1]*crop_size/32)))
-        dps = ((dps_left[0]+dps_right[0])*5,(dps_left[1]+dps_right[1])*5)
-        face_normal = 20*find_normal(faces[0]['keypoints'])
-        gaze_vector_3d = np.array((face_normal[0]+dps[0], face_normal[1]+dps[1], face_normal[2]))
-        q.append(gaze_vector_3d)
-        gaze_vector_3d = get_ma(q)
-        gaze_vector = (gaze_vector_3d[0], gaze_vector_3d[1])
+            right_eye = cv2.cvtColor(right_eye, cv2.COLOR_RGB2GRAY)
+            right_eye = np.reshape(right_eye,(32,32,1))
+            dps_left, pred_left = gaze.calc_dps(left_eye,offset=dps_offset, z_weight=z_weight)
+            left_pupil = (lc[0]+int(np.round(pred_left[0]*crop_size/32)),lc[1]+int(np.round(pred_left[1]*crop_size/32)))
+            
+            dps_right, pred_right = gaze.calc_dps(right_eye,offset=dps_offset, z_weight=z_weight)
+            right_pupil = (rc[0]+int(np.round(pred_right[0]*crop_size/32)),rc[1]+int(np.round(pred_right[1]*crop_size/32)))
+            dps = dps_left+dps_right
+            print(f'DPS:{dps}')
+            face_normal = find_normal(faces[0]['keypoints'])
+            print(f'FACE_NORMAL:{face_normal}')
+            gaze_vector_3d = hp_weight*face_normal+dps
+            print(f'GAZE VECTOR 3D: {gaze_vector_3d}')
+            print(f'OBJECTS IN SPACE: ')
+            for obj in objects_in_space:
+                print('vector:',obj['vector'])
+            q.append(gaze_vector_3d)
+            gaze_vector_3d = get_ma(q)
 
-        #draw_normal(pixels,bbox[0],gaze_vector,left_pupil,(0,255,0))
-        #draw_normal(pixels,bbox[0],gaze_vector,right_pupil,(0,255,0))
+            gaze_vector = (20*gaze_vector_3d[0],20*gaze_vector_3d[1])
 
-        #draw_landmarks(pixels,pred_left,lc,bbox[0],crop_size/32)
-        #draw_landmarks(pixels,pred_right,rc,bbox[0],crop_size/32)
-        
-        between_eyes = (int((left_pupil[0]+right_pupil[0])*0.5),int((left_pupil[1]+right_pupil[1])*0.5))
+            #draw_normal(pixels,bbox[0],gaze_vector,left_pupil,(0,255,0))
+            #draw_normal(pixels,bbox[0],gaze_vector,right_pupil,(0,255,0))
 
-        draw_normal(pixels,bbox[0],gaze_vector,between_eyes,(255,0,0))
+            #draw_landmarks(pixels,pred_left,lc,bbox[0],crop_size/32)
+            #draw_landmarks(pixels,pred_right,rc,bbox[0],crop_size/32)
+            
+            between_eyes = (int((left_pupil[0]+right_pupil[0])*0.5),int((left_pupil[1]+right_pupil[1])*0.5))
 
-        draw_normal(pixels,bbox[0],face_normal,faces[0]['keypoints']['nose'])
-        draw_prediction(pixels,objects_in_space,gaze_vector_3d,yolo_dim)
-        cv2.imshow('pixels',pixels)
-        #pipeline.stop()
-        if cv2.waitKey(1) == 27:
-            break  # esc to quit
-        #pipeline.start(config)
+            draw_normal(pixels,bbox[0],gaze_vector,between_eyes,(255,0,0))
+
+            draw_normal(pixels,bbox[0],face_normal,faces[0]['keypoints']['nose'])
+            draw_prediction(pixels,objects_in_space,gaze_vector_3d,yolo_dim)
+            cv2.imshow('pixels',pixels)
+            #pipeline.stop()
+            if cv2.waitKey(1) == 27:
+                break  # esc to quit
+            #pipeline.start(config)
+            print('time: ',time.perf_counter()-t1)
     cv2.destroyAllWindows()

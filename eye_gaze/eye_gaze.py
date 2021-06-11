@@ -37,15 +37,19 @@ class eye_gaze:
             ortho *= -1
         #ortho /= np.linalg.norm(ortho)
         eye_mid = (eye_mid + offset*ortho)      #TODO!!!
+
         return eye_mid
 
 
-    def calc_dps(self,eye,offset=0.05):
+    def calc_dps(self,eye,offset=0.05, z_weight = 0.15):
         image = eye.copy()
         eye = np.expand_dims(eye, axis=0)
         pred = self.model.predict(eye)[0]
         eye_mid = self.find_true_center(pred,offset=offset)
         pupil = np.array([pred[0],pred[1]])
         dps = pupil-eye_mid
-        dps = np.array([dps[0],dps[1],0])
+        z = np.array([pred[2]-pred[4],pred[3]-pred[5]])
+        z = np.linalg.norm(z)*z_weight 
+        dps = np.array([dps[0],dps[1],-z])
+        dps /= np.linalg.norm(dps)
         return dps, pred
