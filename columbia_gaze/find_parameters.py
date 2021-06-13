@@ -149,15 +149,8 @@ def predict_dps(face, img, eg, offset, z_weight):
 
     input_data_right = np.reshape(right_cropped,(32,32,1))
 
-
     left_dps,_ = eg.calc_dps(input_data_left,offset, z_weight)
-    left_dps[0] = int(round(left_dps[0]))
-    left_dps[1] = int(round(left_dps[1]))
-
     right_dps,_ = eg.calc_dps(input_data_right,offset, z_weight)
-    right_dps[0] = int(round(right_dps[0]))
-    right_dps[1] = int(round(right_dps[1]))
-
     dps = (left_dps+right_dps)/2
 
     dps /= np.linalg.norm(dps)
@@ -210,8 +203,10 @@ def gaze_error(offset, head_weight, z_weight):
             img = cv2.imread(path)
             img = cv2.resize(img,(648,432))
             dps = predict_dps(face, img, eg, offset, z_weight)
+            dps_norm = np.linalg.norm(np.array([dps[0],dps[1]]))
+
             head = find_normal(face['keypoints'])
-            gaze = head_weight*head+dps
+            gaze = head_weight*dps_norm*head+dps
             angle_sum += vector_angle(ground_truth[i]['Gaze'],gaze)
             nr_elements += 1
     avg_error = angle_sum/nr_elements
@@ -227,7 +222,7 @@ print('ground truth done')
 if __name__ == '__main__':
     head_pose_data = {}
 
-    """
+
 
     SPACE = [
     skopt.space.Real(0.00, 0.2, name='offset', prior='uniform'),
@@ -238,7 +233,7 @@ if __name__ == '__main__':
     def objective(offset, head_weight, z_weight):
         return gaze_error(offset, head_weight, z_weight)
 
-    results = skopt.forest_minimize(objective, SPACE, base_estimator = 'RF', n_calls=30, n_random_starts=10)
+    results = skopt.forest_minimize(objective, SPACE, n_calls=30, n_random_starts=10)
     best_auc = results.fun
     best_params = results.x
 
@@ -246,7 +241,7 @@ if __name__ == '__main__':
     print('best result: ', best_auc)
     print('best parameters: ', best_params)
 
-    """
+
     """
     for i in range(5):
         data = ground_truth[i]
@@ -293,7 +288,7 @@ if __name__ == '__main__':
         cv2.waitKey(0)
 
     """
-    
+    '''
     limit = 0
     SPACE = [
     skopt.space.Real(0.3, 0.8, name='Rm', prior='uniform'),
@@ -312,3 +307,4 @@ if __name__ == '__main__':
     #predicted_dps = predict_dps('columbia_gaze/Columbia_Gaze_Data_Set',[],MTCNN())
     print('best result: ', best_auc)
     print('best parameters: ', best_params)
+    '''

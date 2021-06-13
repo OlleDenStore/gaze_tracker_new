@@ -5,7 +5,7 @@ import cv2
 
 
 def mtcnn_fun(img, min_size, factor, thresholds):
-    with open('/home/cif06dsi/gaze_tracker/tf_mtcnn_master/mtcnn.pb', 'rb') as f:
+    with open('/home/cif06dsi/gaze_tracker_new/tf_mtcnn_master/mtcnn.pb', 'rb') as f:
         graph_def = tf.compat.v1.GraphDef.FromString(f.read())
 
     #with tf.device('/cpu:0'):

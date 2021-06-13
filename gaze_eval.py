@@ -93,8 +93,8 @@ if __name__ == '__main__':
     
     
     yo_img = draw_boxes(yolo_img,v_boxes, v_labels, v_scores)
-    cv2.imshow("yolo",yo_img)
-    cv2.waitKey(0)
+    #cv2.imshow("yolo",yo_img)
+    #cv2.waitKey(0)
     
 
     bbox = find_bbox(faces[0],width,height)
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     lm = faces[0]['keypoints']
     crop_size = abs(lm['left_eye'][0]-lm['right_eye'][0])
 
-    while False:
+    while True:
     #for x in range(2):
         ret, pixels = cap.read()
         if not ret:
