@@ -12,6 +12,8 @@ from YOLO.yolo_predict import yolo_predict, draw_boxes
 import pyrealsense2 as rs
 import time
 from collections import deque
+import math
+from random import randrange
 
 def crop_eye_image(image, corner, width, height):
     cropped_image = image[int(np.round(corner[1])):int(np.round(corner[1]+height)),int(np.round(corner[0])):int(np.round(corner[0]+width))]
@@ -92,9 +94,43 @@ def calc_vector(x_y,depth_frame,point):
     depth = get_depth(x_y,depth_frame)
     x_y_z = np.array(rs.rs2_deproject_pixel_to_point(
                             depth_intrin, [x_y[0], x_y[1]], depth))
+
     v = x_y_z-point
     v /= np.linalg.norm(v)
+
     return v
+
+def find_objects_in_space(faces, depth_frame, yolo_data, x_scale, y_scale):
+    objects_in_space = []
+    eye_mid = (np.array(faces[0]['keypoints']['left_eye'])+np.array(faces[0]['keypoints']['right_eye']))*0.5
+    eye_mid = (int(np.round(eye_mid[0])),int(np.round(eye_mid[1])))
+    depth = get_depth(eye_mid, depth_frame)
+    print('eye_mid', eye_mid)
+    
+    mid_point = np.array(rs.rs2_deproject_pixel_to_point(
+                                depth_intrin, [eye_mid[0], eye_mid[1]], depth))
+
+    print('mid_point:',mid_point)
+    for obj in yolo_data:
+        x_y = obj[0].get_center()
+        x_y = [int(np.round(x_y[0]*x_scale)),int(np.round(x_y[1]*y_scale))]
+        v = calc_vector(x_y,depth_frame,mid_point)
+
+        objects_in_space.append(
+            {
+                'x_y': x_y,
+                'vector': v
+            }
+        )
+    '''
+    objects_in_space.append(
+            {
+                'x_y': (100,200),
+                'vector': calc_vector((100,200),depth_frame,mid_point)
+            }
+        )
+    '''
+    return objects_in_space
 
 if __name__ == '__main__':
     global nose
@@ -112,14 +148,14 @@ if __name__ == '__main__':
     profile = pipeline.start(config)
     device   = profile.get_device()
     playback = rs.playback(device)
-    playback.set_real_time(True)
+    playback.set_real_time(False)
     align = rs.align(rs.stream.color)
     frames = pipeline.wait_for_frames()
     aligned_frames = align.process(frames)
     depth_frame = aligned_frames.get_depth_frame().as_depth_frame()
     color_frame = aligned_frames.get_color_frame()
     color_frame = np.asanyarray(color_frame.get_data())
-    pipeline.stop()
+    #pipeline.stop()
     pixels = cv2.cvtColor(color_frame, cv2.COLOR_BGR2RGB)
     depth_intrin = depth_frame.profile.as_video_stream_profile().intrinsics
  
@@ -144,36 +180,10 @@ if __name__ == '__main__':
     cv2.waitKey(0)
     '''
     yolo_data = [x for x in zip(v_boxes,v_labels) if (x[1]=='bottle' or x[1]=='cell phone' or x[1]=='mouse')]
-    objects_in_space = []
     x_scale = pixels.shape[1]/yolo_dim[0]
     y_scale = pixels.shape[0]/yolo_dim[1]
 
-    s_p = (np.array(faces[0]['keypoints']['left_eye'])+np.array(faces[0]['keypoints']['right_eye']))*0.5
-    nose =  s_p #(s_p[0]*x_scale,s_p[1]*y_scale)
-    depth = get_depth(nose, depth_frame)
-
-    mid_point = np.array(rs.rs2_deproject_pixel_to_point(
-                                depth_intrin, [nose[0], nose[1]], depth))
-
-    for obj in yolo_data:
-        x_y = obj[0].get_center()
-        x_y = [int(np.round(x_y[0]*x_scale)),int(np.round(x_y[1]*y_scale))]
-        v = calc_vector(x_y,depth_frame,mid_point)
-
-        objects_in_space.append(
-            {
-                'x_y': x_y,
-                'vector': v
-            }
-        )
-    '''
-    objects_in_space.append(
-            {
-                'x_y': (100,200),
-                'vector': calc_vector((100,200),depth_frame,mid_point)
-            }
-        )
-    '''
+    objects_in_space = find_objects_in_space(faces,depth_frame,yolo_data,x_scale,y_scale)
     bbox = find_bbox(faces[0],width,height)
 
     gaze = eye_gaze('eye_gaze/Data/Models/CorCNN.model')
@@ -187,7 +197,7 @@ if __name__ == '__main__':
         q.append(np.array([0,0,0]))
         q2.append(np.array([0,0,0]))
         #q3.append(np.array([0,0,0]))
-    pipeline.start(config)
+    #pipeline.start(config)
 
     while True:
     #for x in range(2):
@@ -230,11 +240,7 @@ if __name__ == '__main__':
             dps_left, pred_left = gaze.calc_dps(left_eye,offset=dps_offset, z_weight=z_weight)
             dps_right, pred_right = gaze.calc_dps(right_eye,offset=dps_offset, z_weight=z_weight)
             dps = (dps_left+dps_right)/2
-            #q3.append(dps)
-            #dps = get_ma(q3)
-            #eye_img = gaze.draw_landmarks(right_eye,pred_right,eye_mid_left, ground_truth=True)
-            #print(f'pred:{pred_left}')
-            #cv2.imshow("eye",eye_img)
+
             print(f'DPS:{dps/np.linalg.norm(dps)}')
             dps_norm = np.linalg.norm(np.array([dps[0],dps[1]]))
 
@@ -267,15 +273,14 @@ if __name__ == '__main__':
             between_eyes = (int((left_pupil[0]+right_pupil[0])*0.5),int((left_pupil[1]+right_pupil[1])*0.5))
 
             draw_normal(pixels,bbox[0],gaze_vector,between_eyes,(255,0,0))
-            draw_normal(pixels,bbox[0],face_normal,faces[0]['keypoints']['nose'])
+            draw_normal(pixels,bbox[0],20*face_normal,faces[0]['keypoints']['nose'])
 
+            #objects_in_space = find_objects_in_space(faces,depth_frame,yolo_data,x_scale,y_scale)
             draw_prediction(pixels,objects_in_space,gaze_vector_3d,yolo_dim)
             image_all = cv2.resize(pixels, (1280,720), interpolation = cv2.INTER_AREA)
             cv2.imshow('pixels',image_all)
             
             if cv2.waitKey(0) == 27:
-                pipeline.stop()
                 break  # esc to quit
-            #pipeline.start(config)
             print('time: ',time.perf_counter()-t1)
     cv2.destroyAllWindows()
