@@ -233,7 +233,7 @@ if __name__ == '__main__':
     def objective(offset, head_weight, z_weight):
         return gaze_error(offset, head_weight, z_weight)
 
-    results = skopt.forest_minimize(objective, SPACE, n_calls=30, n_random_starts=10)
+    results = skopt.forest_minimize(objective, SPACE, n_calls=60, n_random_starts=10)
     best_auc = results.fun
     best_params = results.x
 

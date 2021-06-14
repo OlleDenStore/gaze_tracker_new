@@ -80,13 +80,21 @@ def draw_prediction(img,obj_in_space,gaze,yolo_dim):
 def get_ma(q):
     avg = np.array([0.0,0.0,0.0])
     #weights = np.array([0.1 , 0.1 , 0.2, 0.4, 0.6, 0.8, 1.0])
-    weights = np.array([1.0 , 1.0 , 1.0, 1.0, 1.0, 1.0, 1.0])
+    weights = np.array([1.0]*len(q))
     weights /= sum(weights)
     #print(f'queue_length:{len(q)}')
     for index, item in enumerate(q):
         avg += item*weights[index]
         #print(f'index: {index} item:{item}')
     return avg
+
+def calc_vector(x_y,depth_frame,point):
+    depth = get_depth(x_y,depth_frame)
+    x_y_z = np.array(rs.rs2_deproject_pixel_to_point(
+                            depth_intrin, [x_y[0], x_y[1]], depth))
+    v = x_y_z-point
+    v /= np.linalg.norm(v)
+    return v
 
 if __name__ == '__main__':
     global nose
@@ -97,14 +105,14 @@ if __name__ == '__main__':
 
     pipeline = rs.pipeline()
     config = rs.config()
-    rs.config.enable_device_from_file(config, 'utvärdering/Light/100cm_200cm_Torch.bag')
+    rs.config.enable_device_from_file(config, 'utvärdering/Light/100cm_100cm_Torch.bag')
     #rs.config.enable_device_from_file(config, 'eye_gaze/Data/videos/eval.bag')
     config.enable_stream(rs.stream.depth, rs.format.z16, 30)
     config.enable_stream(rs.stream.color, rs.format.rgb8, 30)
     profile = pipeline.start(config)
     device   = profile.get_device()
     playback = rs.playback(device)
-    playback.set_real_time(False)
+    playback.set_real_time(True)
     align = rs.align(rs.stream.color)
     frames = pipeline.wait_for_frames()
     aligned_frames = align.process(frames)
@@ -140,44 +148,45 @@ if __name__ == '__main__':
     x_scale = pixels.shape[1]/yolo_dim[0]
     y_scale = pixels.shape[0]/yolo_dim[1]
 
-    s_p = faces[0]['keypoints']['nose']
+    s_p = (np.array(faces[0]['keypoints']['left_eye'])+np.array(faces[0]['keypoints']['right_eye']))*0.5
     nose =  s_p #(s_p[0]*x_scale,s_p[1]*y_scale)
     depth = get_depth(nose, depth_frame)
 
-    nose_point = np.array(rs.rs2_deproject_pixel_to_point(
+    mid_point = np.array(rs.rs2_deproject_pixel_to_point(
                                 depth_intrin, [nose[0], nose[1]], depth))
-    print('nose_point:',nose_point)
 
     for obj in yolo_data:
-        print("obj:"+obj[0].to_string())
         x_y = obj[0].get_center()
         x_y = [int(np.round(x_y[0]*x_scale)),int(np.round(x_y[1]*y_scale))]
-        print(x_y)
-        depth = get_depth(x_y,depth_frame)
-        print("depth:",depth)
-        x_y_z = np.array(rs.rs2_deproject_pixel_to_point(
-                                depth_intrin, [x_y[0], x_y[1]], depth))
-        v = x_y_z-nose_point
-        v /= np.linalg.norm(v)
+        v = calc_vector(x_y,depth_frame,mid_point)
+
         objects_in_space.append(
             {
                 'x_y': x_y,
-                'vector': v,
-                'label': obj[0].get_label()
+                'vector': v
             }
         )
-        print('vector: ',v)
-
-
+    '''
+    objects_in_space.append(
+            {
+                'x_y': (100,200),
+                'vector': calc_vector((100,200),depth_frame,mid_point)
+            }
+        )
+    '''
     bbox = find_bbox(faces[0],width,height)
 
     gaze = eye_gaze('eye_gaze/Data/Models/CorCNN.model')
     lm = faces[0]['keypoints']
     crop_size = abs(lm['left_eye'][0]-lm['right_eye'][0])
-    q_size = 7
+    q_size = 5
     q = deque(maxlen=q_size)
+    q2 = deque(maxlen=q_size)
+    #q3 = deque(maxlen=q_size)
     for x in range(q_size):
         q.append(np.array([0,0,0]))
+        q2.append(np.array([0,0,0]))
+        #q3.append(np.array([0,0,0]))
     pipeline.start(config)
 
     while True:
@@ -197,9 +206,13 @@ if __name__ == '__main__':
         faces = detector.detect_faces(image)
         if(len(faces)>0):
             # CALIBRATION PARAMS
-            dps_offset = 0.07 #0.09894059099181585  # 
-            hp_weight = 1.0 #1.4501960162323853  # 1.0 #
-            z_weight = 0.05935353286090281 # 0.15 #
+            #0.08052692765206065, 1.7950252705257197, 0.08724393767180476
+            #Offset: 0.08967666543176575 Head Weight: 1.0293954960388287 Z-weight: 0.2351902210617131
+            #Offset: 0.085052578734917 Head Weight: 0.8714945575855622 Z-weight: 0.17025042153180175
+            dps_offset = 0.08052692765206065 #0.09894059099181585  # 
+            hp_weight = 1.7950252705257197 #1.4501960162323853  # 1.0 #
+            z_weight = 0.08724393767180476 #0.05935353286090281 # 0.15 #
+
 
             le = faces[0]['keypoints']['left_eye']
             lc = (le[0]-int(crop_size/2),le[1]-int(crop_size/2))
@@ -217,6 +230,8 @@ if __name__ == '__main__':
             dps_left, pred_left = gaze.calc_dps(left_eye,offset=dps_offset, z_weight=z_weight)
             dps_right, pred_right = gaze.calc_dps(right_eye,offset=dps_offset, z_weight=z_weight)
             dps = (dps_left+dps_right)/2
+            #q3.append(dps)
+            #dps = get_ma(q3)
             #eye_img = gaze.draw_landmarks(right_eye,pred_right,eye_mid_left, ground_truth=True)
             #print(f'pred:{pred_left}')
             #cv2.imshow("eye",eye_img)
@@ -224,13 +239,16 @@ if __name__ == '__main__':
             dps_norm = np.linalg.norm(np.array([dps[0],dps[1]]))
 
             face_normal = find_normal(faces[0]['keypoints'])
+            #q2.append(face_normal)
+            #face_normal=get_ma(q2)
             print(f'FACE_NORMAL:{face_normal/np.linalg.norm(face_normal)}')
             gaze_vector_3d = hp_weight*dps_norm*face_normal+dps
             print(f'OBJECTS IN SPACE: ')
             for obj in objects_in_space:
                 print('vector:',obj['vector'])
             q.append(gaze_vector_3d)
-            gaze_vector_3d = get_ma(q)
+            q2.append(get_ma(q))
+            gaze_vector_3d = get_ma(q2)
             print(f'DPS_NORM: {dps_norm}')
             print(f'GAZE VECTOR 3D: {gaze_vector_3d/np.linalg.norm(gaze_vector_3d)}')
             print('==============================')

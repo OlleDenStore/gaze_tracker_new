@@ -31,13 +31,13 @@ class eye_gaze:
         eye_mid_x = (pred[2]+pred[4])/2
         eye_mid_y = (pred[3]+pred[5])/2
         eye_mid = np.array([eye_mid_x,eye_mid_y])
-        
+        #print('eyemid_before:',eye_mid)
         corner_vector = np.array([pred[4]-pred[2],pred[5]-pred[3]])
-        ortho = np.array([corner_vector[1],-corner_vector[0]])
+        ortho = np.array([-corner_vector[1],-corner_vector[0]])
         if (ortho[1]>0):
             ortho *= -1
         eye_mid = (eye_mid + offset*ortho)
-
+        #print('eyemid_after:',eye_mid)
         return eye_mid
 
 

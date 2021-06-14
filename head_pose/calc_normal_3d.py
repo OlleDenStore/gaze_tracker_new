@@ -10,7 +10,7 @@ def draw_normal(image, normal, face):
     cv2.arrowedLine(image, p1, p2, (255,0,0), 2)
     return image
 
-def find_normal(landmarks, Rm=0.5120188457668462, Rn=0.4565686085566898):
+def find_normal(landmarks, Rm=0.5120188457668462, Rn=0.4565686085566898): #Rn=0.4565686085566898):
     left_eye = np.array(landmarks['left_eye'])
     right_eye = np.array(landmarks['right_eye'])
     eye_vector = right_eye-left_eye
