@@ -72,8 +72,10 @@ def draw_prediction(img,obj_in_space,gaze,yolo_dim):
     angles = []
 
     for obj in objects_in_space:
-        angles.append(vector_angle(obj['vector'],gaze))
+        error = vector_angle(obj['vector'],gaze)
+        angles.append(error)
         image = cv2.circle(image, (int(np.round(obj['x_y'][0])),int(np.round(obj['x_y'][1]))), 5, (0,0,255),3)
+        print(obj['x_y']," Error: ", error)
     lowest_angle = min(angles)
     index = angles.index(lowest_angle)
     image = cv2.circle(image, (int(np.round(objects_in_space[index]['x_y'][0])),int(np.round(objects_in_space[index]['x_y'][1]))), 5, (0,255,255), 3)
@@ -141,7 +143,7 @@ if __name__ == '__main__':
 
     pipeline = rs.pipeline()
     config = rs.config()
-    rs.config.enable_device_from_file(config, 'utvärdering/Light/100cm_100cm_Torch.bag')
+    rs.config.enable_device_from_file(config, 'utvärdering/Light/150cm_100cm_Torch.bag')
     #rs.config.enable_device_from_file(config, 'eye_gaze/Data/videos/eval.bag')
     config.enable_stream(rs.stream.depth, rs.format.z16, 30)
     config.enable_stream(rs.stream.color, rs.format.rgb8, 30)
