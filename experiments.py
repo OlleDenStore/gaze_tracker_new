@@ -199,6 +199,7 @@ if __name__ == '__main__':
         #q3.append(np.array([0,0,0]))
     #pipeline.start(config)
 
+    i = 0
     while True:
     #for x in range(2):
         #ret, pixels = cap.read()
@@ -279,8 +280,9 @@ if __name__ == '__main__':
             draw_prediction(pixels,objects_in_space,gaze_vector_3d,yolo_dim)
             image_all = cv2.resize(pixels, (1280,720), interpolation = cv2.INTER_AREA)
             cv2.imshow('pixels',image_all)
-            
-            if cv2.waitKey(0) == 27:
-                break  # esc to quit
+            if(i%10==0):
+                if cv2.waitKey(0) == 27:
+                    break  # esc to quit
+            i += 1
             print('time: ',time.perf_counter()-t1)
     cv2.destroyAllWindows()
