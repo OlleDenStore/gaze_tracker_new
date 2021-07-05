@@ -8,6 +8,7 @@ from tensorflow.keras import activations
 from tensorflow import keras
 import tensorflow as tf
 import numpy as np
+from keras.utils.vis_utils import plot_model
 
 def compile_model():
     ip = Input(shape=(32, 32, 1))
@@ -74,8 +75,12 @@ def load(path):
     return x,y
 
 if __name__ == "__main__":
-    
+    """
     x, y = load("Data/generated/generated_training.npz")
     train(x,y)
     x, y = load("Data/generated/generated_test.npz")
     test(x,y)
+    """
+    model = compile_model()
+    print(model.summary())
+    plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)

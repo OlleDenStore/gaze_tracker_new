@@ -118,7 +118,7 @@ def data_from_muct(path):
 
 
 def generate_data():
-
+    '''
     images, left_eye_center, left_eye_inner_corner, left_eye_outer_corner, right_eye_center, right_eye_inner_corner, right_eye_outer_corner = data_from_muct('Data/muct/muct76-opencv.csv')
     aug = augmenter(images,left_eye_center,left_eye_inner_corner,left_eye_outer_corner,right_eye_center,right_eye_inner_corner,right_eye_outer_corner)
 
@@ -130,7 +130,7 @@ def generate_data():
             print(j,"/",len(images))
         data = aug.process_image(j, 5, 5, 5, 0.5, size=64)
         build_x_y(data,x2,y2)
-
+    '''
     images, left_eye_center, left_eye_inner_corner, left_eye_outer_corner, right_eye_center, right_eye_inner_corner, right_eye_outer_corner = data_from_csv('Data/training/training.csv')
     aug = augmenter(images,left_eye_center,left_eye_inner_corner,left_eye_outer_corner,right_eye_center,right_eye_inner_corner,right_eye_outer_corner)
 
@@ -155,8 +155,8 @@ def generate_data():
     print("Y_train:",np.shape(y_train))
     print("X_test:",np.shape(x_test))
     print("Y_test:",np.shape(y_test))
-    np.savez("Data/generated/generated_training", x=x_train, y=y_train)
-    np.savez("Data/generated/generated_test", x=x_test, y=y_test)
+    #np.savez("Data/generated/generated_training", x=x_train, y=y_train)
+    #np.savez("Data/generated/generated_test", x=x_test, y=y_test)
 
 
 """

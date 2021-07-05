@@ -124,15 +124,27 @@ def find_objects_in_space(faces, depth_frame, yolo_data, x_scale, y_scale):
                 'vector': v
             }
         )
-    '''
+
+    p = (634,523)
+
     objects_in_space.append(
             {
-                'x_y': (100,200),
-                'vector': calc_vector((100,200),depth_frame,mid_point)
+                'x_y': p,
+                'vector': calc_vector(p,depth_frame,mid_point)
             }
         )
-    '''
+    """
+    p2 = (495,485)
+
+    objects_in_space.append(
+            {
+                'x_y': p2,
+                'vector': calc_vector(p2,depth_frame,mid_point)
+            }
+        )
+    """
     return objects_in_space
+
 
 if __name__ == '__main__':
     global nose
@@ -143,7 +155,7 @@ if __name__ == '__main__':
 
     pipeline = rs.pipeline()
     config = rs.config()
-    rs.config.enable_device_from_file(config, 'utvärdering/Light/150cm_100cm_Torch.bag')
+    rs.config.enable_device_from_file(config, 'utvärdering/Light/100cm_150cm_Torch.bag')
     #rs.config.enable_device_from_file(config, 'eye_gaze/Data/videos/eval.bag')
     config.enable_stream(rs.stream.depth, rs.format.z16, 30)
     config.enable_stream(rs.stream.color, rs.format.rgb8, 30)
@@ -251,7 +263,7 @@ if __name__ == '__main__':
             #q2.append(face_normal)
             #face_normal=get_ma(q2)
             print(f'FACE_NORMAL:{face_normal/np.linalg.norm(face_normal)}')
-            gaze_vector_3d = hp_weight*dps_norm*face_normal+dps
+            gaze_vector_3d = 0*hp_weight*dps_norm*face_normal + dps
             print(f'OBJECTS IN SPACE: ')
             for obj in objects_in_space:
                 print('vector:',obj['vector'])
@@ -282,9 +294,9 @@ if __name__ == '__main__':
             draw_prediction(pixels,objects_in_space,gaze_vector_3d,yolo_dim)
             image_all = cv2.resize(pixels, (1280,720), interpolation = cv2.INTER_AREA)
             cv2.imshow('pixels',image_all)
-            if(i%10==0):
-                if cv2.waitKey(0) == 27:
-                    break  # esc to quit
-            i += 1
+            #if(i%10==0):
+            if cv2.waitKey(0) == 27:
+                break  # esc to quit
+            #i += 1
             print('time: ',time.perf_counter()-t1)
     cv2.destroyAllWindows()
