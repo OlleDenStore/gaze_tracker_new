@@ -12,14 +12,15 @@ from random import randrange
 
 class gaze_tracker:
 
-    def __init__(self, yolo_prediction=False):
+    def __init__(self, yolo_prediction=False, bag_file=None):
         self.yolo_prediction=yolo_prediction
         self.detector = MTCNN()
         self.gaze = eye_gaze('eye_gaze/Data/Models/CorCNN.model')
 
         self.pipeline = rs.pipeline()
         config = rs.config()
-        rs.config.enable_device_from_file(config, 'utvärdering/demo.bag')
+        if bag_file:
+            rs.config.enable_device_from_file(config, bag_file)
         config.enable_stream(rs.stream.depth, rs.format.z16, 30)
         config.enable_stream(rs.stream.color, rs.format.rgb8, 30)
         profile = self.pipeline.start(config)
@@ -222,7 +223,7 @@ class gaze_tracker:
 
 
 if __name__ == '__main__':
-    gt = gaze_tracker(yolo_prediction=False)
+    gt = gaze_tracker(yolo_prediction=False, bag_file='utvärdering/demo.bag')
     while True:
         img, gaze = gt.estimate_gaze(draw_gaze=True,draw_headpose=True)
         cv2.imshow('gaze_img',img)
