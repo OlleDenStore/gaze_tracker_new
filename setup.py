@@ -2,12 +2,13 @@
 
 from distutils.core import setup
 from catkin_pkg.python_setup import generate_distutils_setup
+import sys
 
+print(sys.version)
 # fetch values from package.xml
 setup_args = generate_distutils_setup(
-    packages=['gaze_tracker'],
+    packages=['gaze_services'],
     package_dir={'': 'src'},
-    install_requires=[],
 )
 
 setup(**setup_args)
