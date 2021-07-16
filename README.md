@@ -1,5 +1,9 @@
 # gaze
 
+First add CorCNN.model file to src/gaze_tracker/eye_gaze/Data/Models
+
+requirements.txt can be used to create conda environment (note that this code uses Python 3.6)
+
 ROS node for gaze tracking in ros_stuff/gaze_track.py. Subscribes to aligned rgb and depth images on /camera/color/image_raw and /camera/aligned_depth_to_color/image_raw topics and needs camera information from /camera/aligned_depth_to_color/camera_info topic.
 
 Publishes gaze direction as sensor_msgs/Imu message (Vector3, but easily visualized in Rviz) to /gaze topic (along with the head and eye gaze individually to /gazeH and /gazeE.
