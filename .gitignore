@@ -14,11 +14,6 @@ __pycache__/
 *.model
 *.npz
 *.gz
-*.h5
-*.weights
-*.avi
-*.bag
-
 
 # C extensions
 *.so
@@ -144,4 +139,3 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
->>>>>>> b080120845c83dc1b5e021b56e947a788d462187
